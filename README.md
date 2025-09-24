@@ -48,23 +48,23 @@ The Activity Planner helps you:
 
 ## 2. Core Features
 
-| Feature                       | Status            | Notes                                       |
-| ----------------------------- | ----------------- | ------------------------------------------- |
-| Activities CRUD               | Implemented       | Via Activities page                         |
-| Timer tracking                | Implemented       | Persists sessions to SQLite                 |
-| Auto‑detect (window title)    | Windows only      | Poll ~700 ms, debounced                     |
-| AI classification             | Optional          | Gemini via API key; fallback heuristic      |
-| Auto‑switch + auto‑start      | Implemented       | Threshold & behavior configurable           |
-| Title mapping rules           | Implemented       | Create (from suggestion) + manage dialog    |
-| Planner / Timetable           | Implemented       | Saves day schedule; notifications integrate |
-| System tray notifications     | Implemented       | Slot start/end reminders, snooze, DND       |
-| Pomodoro cycles               | Implemented       | Work / short / long break sequencing        |
-| Tags                          | Implemented       | Create/edit comma-separated tags per activity |
-| Analytics (calendar + charts) | Implemented       | Daily distribution & weekly totals          |
-| Logging (structured JSON)     | Implemented       | Rotating file handler in `data/logs/`       |
-| Updater (GitHub check)        | Implemented       | Toast when newer release detected           |
-| Secure key storage            | Implemented       | Keyring first, XOR fallback file            |
-| Packaging (PyInstaller)       | In progress       | Spec guidance below                         |
+| Feature                       | Status       | Notes                                         |
+| ----------------------------- | ------------ | --------------------------------------------- |
+| Activities CRUD               | Implemented  | Via Activities page                           |
+| Timer tracking                | Implemented  | Persists sessions to SQLite                   |
+| Auto‑detect (window title)    | Windows only | Poll ~700 ms, debounced                       |
+| AI classification             | Optional     | Gemini via API key; fallback heuristic        |
+| Auto‑switch + auto‑start      | Implemented  | Threshold & behavior configurable             |
+| Title mapping rules           | Implemented  | Create (from suggestion) + manage dialog      |
+| Planner / Timetable           | Implemented  | Saves day schedule; notifications integrate   |
+| System tray notifications     | Implemented  | Slot start/end reminders, snooze, DND         |
+| Pomodoro cycles               | Implemented  | Work / short / long break sequencing          |
+| Tags                          | Implemented  | Create/edit comma-separated tags per activity |
+| Analytics (calendar + charts) | Implemented  | Daily distribution & weekly totals            |
+| Logging (structured JSON)     | Implemented  | Rotating file handler in `data/logs/`         |
+| Updater (GitHub check)        | Implemented  | Toast when newer release detected             |
+| Secure key storage            | Implemented  | Keyring first, XOR fallback file              |
+| Packaging (PyInstaller)       | In progress  | Spec guidance below                           |
 
 ## 3. Quick Start (Development)
 
