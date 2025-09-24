@@ -152,7 +152,40 @@ class TitleCategorizer(QObject):
             if rule_activity:
                 self.suggestion_ready.emit(rule_activity.title, 1.0, title)
                 return
+            # Dynamically fetch threshold (may be changed in settings)
+            from .repositories import get_setting
+            dyn_threshold_s = get_setting(self._db, "auto_switch.conf_threshold")
+            if dyn_threshold_s:
+                try:
+                    self._threshold = float(dyn_threshold_s) / 100.0 if float(dyn_threshold_s) > 1 else float(dyn_threshold_s)
+                except Exception:
+                    pass
             if not self._client:
+                # Heuristic fallback: simple keyword match across existing activities
+                acts = self._store.activities()
+                lower_title = title.lower()
+                best = None
+                best_score = 0
+                for a in acts:
+                    score = 0
+                    at = a.title.lower()
+                    if at in lower_title:
+                        score = len(at)
+                    else:
+                        # token overlap
+                        t_tokens = set(lower_title.split())
+                        a_tokens = set(at.split())
+                        overlap = t_tokens & a_tokens
+                        if overlap:
+                            score = sum(len(tok) for tok in overlap)
+                    if score > best_score:
+                        best_score = score
+                        best = a.title
+                if best and best_score >= 3:  # minimal signal
+                    # Approximate confidence scaled by score vs length
+                    conf = min(0.99, best_score / max(5, len(lower_title)))
+                    if conf >= self._threshold:
+                        self.suggestion_ready.emit(best, conf, title)
                 return
             acts = [a.title for a in self._store.activities()]
             try:

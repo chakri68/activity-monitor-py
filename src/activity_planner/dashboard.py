@@ -175,6 +175,28 @@ class DashboardPage(QWidget):
             current_title = self.activity_combo.itemText(idx)
         if current_title == category:
             return
+        # Auto-switch path
+        auto_switch = get_setting(self._db, "auto_switch.enabled") == "1"
+        if auto_switch:
+            try:
+                dyn_threshold = float(get_setting(self._db, "auto_switch.conf_threshold") or 65)
+            except Exception:
+                dyn_threshold = 65.0
+            # threshold stored as percent
+            if dyn_threshold > 1:
+                dyn_threshold /= 100.0
+            if confidence >= dyn_threshold:
+                self._select_activity_title(category)
+                # Optional auto-start
+                auto_start = get_setting(self._db, "auto_switch.start_timer") == "1"
+                if auto_start and self._timer_service.state == "idle":
+                    act_id = self.activity_combo.currentData()
+                    if act_id not in (None, -1):
+                        try:
+                            self._timer_service.start(int(act_id))
+                        except Exception:  # silently ignore
+                            pass
+                return  # Do not show banner if auto-switched
         self._pending_category = category
         self._pending_original_title = original_title
         self.suggest_label.setText(f"Switch to {category}? ({confidence:.0%})")

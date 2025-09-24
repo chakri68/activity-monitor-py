@@ -15,6 +15,7 @@ from .repositories import get_setting, set_setting
 from .pomodoro import PomodoroService, PomodoroConfig
 from .toast import show_toast
 from .win_activity_monitor import AUTO_DETECT_KEY
+from .rule_manager import RuleManagerDialog
 
 
 THEME_KEY = "ui.theme"  # light|dark
@@ -23,6 +24,9 @@ POMO_SB = "pomo.short"
 POMO_LB = "pomo.long"
 POMO_CYC = "pomo.cycles"
 NOTIFY_DND = "notifications.dnd"  # already used
+AUTO_SWITCH = "auto_switch.enabled"
+AUTO_START = "auto_switch.start_timer"
+AUTO_CONF_THRESHOLD = "auto_switch.conf_threshold"
 
 
 class SettingsPage(QWidget):  # pragma: no cover UI heavy
@@ -47,6 +51,19 @@ class SettingsPage(QWidget):  # pragma: no cover UI heavy
         self.dnd_cb = QCheckBox("Do Not Disturb (suppress popups)")
         layout.addWidget(self.dnd_cb)
 
+        # Auto switch group
+        layout.addWidget(QLabel("Auto Switch Behaviour"))
+        auto_row = QHBoxLayout()
+        self.auto_switch_cb = QCheckBox("Automatically switch activity when confident")
+        self.auto_start_cb = QCheckBox("Start timer on auto switch if idle")
+        self.conf_spin = QSpinBox(); self.conf_spin.setRange(10, 100); self.conf_spin.setSuffix("%")
+        auto_row.addWidget(self.auto_switch_cb)
+        auto_row.addWidget(self.auto_start_cb)
+        auto_row.addWidget(QLabel("Min Confidence:"))
+        auto_row.addWidget(self.conf_spin)
+        auto_row.addStretch(1)
+        layout.addLayout(auto_row)
+
         # Pomodoro config
         layout.addWidget(QLabel("Pomodoro Configuration (minutes)"))
         pomo_row = QHBoxLayout()
@@ -64,7 +81,8 @@ class SettingsPage(QWidget):  # pragma: no cover UI heavy
         self.btn_save = QPushButton("Save Settings")
         self.btn_export = QPushButton("Export JSON")
         self.btn_import = QPushButton("Import JSON")
-        for b in (self.btn_save, self.btn_export, self.btn_import):
+        self.btn_rules = QPushButton("Manage Title Rules")
+        for b in (self.btn_save, self.btn_export, self.btn_import, self.btn_rules):
             btn_row.addWidget(b)
         btn_row.addStretch(1)
         layout.addLayout(btn_row)
@@ -75,6 +93,7 @@ class SettingsPage(QWidget):  # pragma: no cover UI heavy
         self.btn_save.clicked.connect(self._save)
         self.btn_export.clicked.connect(self._export)
         self.btn_import.clicked.connect(self._import)
+        self.btn_rules.clicked.connect(self._open_rules)
 
     # --- Core ---------------------------------------------------------
     def _load_settings(self):
@@ -84,6 +103,10 @@ class SettingsPage(QWidget):  # pragma: no cover UI heavy
             self.theme_combo.setCurrentIndex(idx)
         self.auto_detect_cb.setChecked(get_setting(self._db, AUTO_DETECT_KEY) == "1")
         self.dnd_cb.setChecked(get_setting(self._db, NOTIFY_DND) == "1")
+        # Auto switch settings
+        self.auto_switch_cb.setChecked(get_setting(self._db, AUTO_SWITCH) == "1")
+        self.auto_start_cb.setChecked(get_setting(self._db, AUTO_START) == "1")
+        self.conf_spin.setValue(int(float(get_setting(self._db, AUTO_CONF_THRESHOLD) or 65)))
         # Pomodoro
         self.work_spin.setValue(int(get_setting(self._db, POMO_WORK) or 25))
         self.short_spin.setValue(int(get_setting(self._db, POMO_SB) or 5))
@@ -95,6 +118,9 @@ class SettingsPage(QWidget):  # pragma: no cover UI heavy
         set_setting(self._db, THEME_KEY, theme)
         set_setting(self._db, AUTO_DETECT_KEY, "1" if self.auto_detect_cb.isChecked() else "0")
         set_setting(self._db, NOTIFY_DND, "1" if self.dnd_cb.isChecked() else "0")
+        set_setting(self._db, AUTO_SWITCH, "1" if self.auto_switch_cb.isChecked() else "0")
+        set_setting(self._db, AUTO_START, "1" if self.auto_start_cb.isChecked() else "0")
+        set_setting(self._db, AUTO_CONF_THRESHOLD, str(self.conf_spin.value()))
         set_setting(self._db, POMO_WORK, str(self.work_spin.value()))
         set_setting(self._db, POMO_SB, str(self.short_spin.value()))
         set_setting(self._db, POMO_LB, str(self.long_spin.value()))
@@ -117,7 +143,7 @@ class SettingsPage(QWidget):  # pragma: no cover UI heavy
         path, _ = QFileDialog.getSaveFileName(self, "Export Settings", filter="JSON (*.json)")
         if not path:
             return
-        keys = [THEME_KEY, AUTO_DETECT_KEY, NOTIFY_DND, POMO_WORK, POMO_SB, POMO_LB, POMO_CYC]
+        keys = [THEME_KEY, AUTO_DETECT_KEY, NOTIFY_DND, AUTO_SWITCH, AUTO_START, AUTO_CONF_THRESHOLD, POMO_WORK, POMO_SB, POMO_LB, POMO_CYC]
         data = {k: (get_setting(self._db, k) or "") for k in keys}
         with open(path, "w", encoding="utf-8") as f:
             json.dump(data, f, indent=2)
@@ -137,6 +163,10 @@ class SettingsPage(QWidget):  # pragma: no cover UI heavy
             self._apply_theme_cb(get_setting(self._db, THEME_KEY) or "light")
         except Exception as e:
             show_toast(self, f"Import failed: {e}")
+
+    def _open_rules(self):  # pragma: no cover UI
+        dlg = RuleManagerDialog(self._db, self)
+        dlg.exec()
 
 
 __all__ = ["SettingsPage", "THEME_KEY"]

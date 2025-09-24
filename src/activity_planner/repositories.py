@@ -338,7 +338,29 @@ def find_rule_for_title(db: DatabaseManager, title: str) -> Activity | None:
     )
 
 
-__all__ += ["create_title_mapping_rule", "find_rule_for_title"]
+def list_title_mapping_rules(db: DatabaseManager) -> list[tuple[int, str, int, str]]:
+    """Return list of (rule_id, pattern, activity_id, activity_title)."""
+    rows = db.query_all(
+        """
+        SELECT r.id, r.pattern, a.id AS activity_id, a.title AS activity_title
+        FROM title_mapping_rules r
+        JOIN activities a ON a.id = r.activity_id
+        ORDER BY r.pattern COLLATE NOCASE
+        """
+    )
+    return [(r["id"], r["pattern"], r["activity_id"], r["activity_title"]) for r in rows]
+
+
+def delete_title_mapping_rule(db: DatabaseManager, rule_id: int) -> None:
+    db.execute("DELETE FROM title_mapping_rules WHERE id=?", (rule_id,))
+
+
+__all__ += [
+    "create_title_mapping_rule",
+    "find_rule_for_title",
+    "list_title_mapping_rules",
+    "delete_title_mapping_rule",
+]
 __all__ += ["delete_timetable_entries", "get_activity_by_title"]
 
 # --- Tags (optional) -------------------------------------------------------
