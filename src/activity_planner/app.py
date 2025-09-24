@@ -27,6 +27,7 @@ from .planner_page import PlannerPage
 from .win_activity_monitor import WinActivityMonitor
 from .gemini_planner import GeminiClient, GeminiClientConfig, TitleCategorizer
 from .notification_manager import NotificationManager
+from .analytics_page import AnalyticsPage
 
 
 APP_NAME = "Activity Planner"
@@ -76,7 +77,7 @@ def get_app_state() -> AppState:
 
 
 class Sidebar(QListWidget):
-    PAGES = ["Dashboard", "Activities", "Planner", "Deadlines"]
+    PAGES = ["Dashboard", "Activities", "Planner", "Deadlines", "Analytics"]
 
     def __init__(self) -> None:
         super().__init__()
@@ -124,6 +125,8 @@ class MainWindow(QMainWindow):
                 if state.title_categorizer and getattr(state.title_categorizer, "_client", None):
                     gem_client = state.title_categorizer._client  # type: ignore[attr-defined]
                 self.pages.addWidget(PlannerPage(state.db, gem_client))
+            elif page == "Analytics":
+                self.pages.addWidget(AnalyticsPage(state.db))
             else:
                 self.pages.addWidget(PlaceholderPage(page))
 
