@@ -203,6 +203,23 @@ def delete_timetable(db: DatabaseManager, timetable_id: int) -> None:
     db.execute("DELETE FROM timetables WHERE id=?", (timetable_id,))
 
 
+def delete_timetable_entries(db: DatabaseManager, timetable_id: int) -> None:
+    db.execute("DELETE FROM timetable_entries WHERE timetable_id=?", (timetable_id,))
+
+
+def get_activity_by_title(db: DatabaseManager, title: str) -> Activity | None:
+    row = db.query_one("SELECT * FROM activities WHERE lower(title)=lower(?)", (title.strip(),))
+    if not row:
+        return None
+    return Activity(
+        id=row["id"],
+        title=row["title"],
+        description=row["description"],
+        effort_level=row["effort_level"],
+        created_at=row["created_at"],
+    )
+
+
 # --- Activity Instances -----------------------------------------------------
 
 def create_activity_instance(db: DatabaseManager, instance: ActivityInstance) -> ActivityInstance:
@@ -322,3 +339,4 @@ def find_rule_for_title(db: DatabaseManager, title: str) -> Activity | None:
 
 
 __all__ += ["create_title_mapping_rule", "find_rule_for_title"]
+__all__ += ["delete_timetable_entries", "get_activity_by_title"]

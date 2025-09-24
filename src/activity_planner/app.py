@@ -22,6 +22,8 @@ from .timer_service import TimerService
 from .dashboard import DashboardPage
 from .activity_store import ActivityStore
 from .activities_page import ActivitiesPage
+from .deadlines_page import DeadlinesPage
+from .planner_page import PlannerPage
 from .win_activity_monitor import WinActivityMonitor
 from .gemini_planner import GeminiClient, GeminiClientConfig, TitleCategorizer
 
@@ -113,6 +115,14 @@ class MainWindow(QMainWindow):
                 )
             elif page == "Activities":
                 self.pages.addWidget(ActivitiesPage(state.activity_store))
+            elif page == "Deadlines":
+                self.pages.addWidget(DeadlinesPage(state.db))
+            elif page == "Planner":
+                # Pass gemini client from categorizer if exists
+                gem_client = None
+                if state.title_categorizer and getattr(state.title_categorizer, "_client", None):
+                    gem_client = state.title_categorizer._client  # type: ignore[attr-defined]
+                self.pages.addWidget(PlannerPage(state.db, gem_client))
             else:
                 self.pages.addWidget(PlaceholderPage(page))
 
