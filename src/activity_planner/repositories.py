@@ -271,3 +271,20 @@ __all__ = [
     "update_activity_instance_end",
     "get_activity_instance",
 ]
+
+# --- Settings ---------------------------------------------------------------
+
+def get_setting(db: DatabaseManager, key: str) -> str | None:
+    row = db.query_one("SELECT value FROM settings WHERE key=?", (key,))
+    return row["value"] if row else None
+
+
+def set_setting(db: DatabaseManager, key: str, value: str) -> None:
+    conn = db.connect()
+    with conn:
+        conn.execute(
+            "INSERT INTO settings(key, value) VALUES(?, ?) ON CONFLICT(key) DO UPDATE SET value=excluded.value",
+            (key, value),
+        )
+
+__all__ += ["get_setting", "set_setting"]

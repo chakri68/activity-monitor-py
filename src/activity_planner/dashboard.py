@@ -14,8 +14,9 @@ from PyQt6.QtWidgets import (
     QMessageBox,
 )
 
-from .repositories import list_activities
 from .timer_service import TimerService
+from .activity_store import ActivityStore
+from .repositories import set_setting, get_setting
 
 
 def format_hhmmss(seconds: int) -> str:
@@ -26,13 +27,14 @@ def format_hhmmss(seconds: int) -> str:
 
 
 class DashboardPage(QWidget):
-    def __init__(self, db_manager, timer_service: TimerService):  # noqa: D401
+    def __init__(self, db_manager, timer_service: TimerService, activity_store: ActivityStore):  # noqa: D401
         super().__init__()
         self._db = db_manager
         self._timer_service = timer_service
+        self._store = activity_store
         self._current_instance_id: Optional[int] = None
-
         self.activity_combo = QComboBox()
+        self._store.changed.connect(self.refresh_activities)
         self.refresh_activities()
 
         self.timer_label = QLabel("00:00:00")
@@ -74,15 +76,30 @@ class DashboardPage(QWidget):
 
     # --- Activity list --------------------------------------------------
     def refresh_activities(self) -> None:
+        sel = self._store.get_selected_activity_id()
+        self.activity_combo.blockSignals(True)
         self.activity_combo.clear()
-        activities = list_activities(self._db)
-        if not activities:
+        acts = self._store.activities()
+        if not acts:
             self.activity_combo.addItem("No activities - create one first", -1)
             self.activity_combo.setEnabled(False)
         else:
-            for a in activities:
+            for a in acts:
                 self.activity_combo.addItem(a.title, a.id)
             self.activity_combo.setEnabled(True)
+            if sel is not None:
+                idx = self.activity_combo.findData(sel)
+                if idx >= 0:
+                    self.activity_combo.setCurrentIndex(idx)
+        self.activity_combo.blockSignals(False)
+        self.activity_combo.currentIndexChanged.connect(self._persist_selection)
+
+    def _persist_selection(self) -> None:  # pragma: no cover trivial
+        act_id = self.activity_combo.currentData()
+        if act_id in (None, -1):
+            self._store.set_selected_activity_id(None)
+        else:
+            self._store.set_selected_activity_id(int(act_id))
 
     # --- Button handlers ------------------------------------------------
     def _on_start(self) -> None:

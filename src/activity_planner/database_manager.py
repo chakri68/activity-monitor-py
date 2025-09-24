@@ -154,8 +154,20 @@ def migration_001_create_core_tables(conn: sqlite3.Connection) -> None:
     )
 
 
+def migration_002_add_settings_table(conn: sqlite3.Connection) -> None:
+    conn.executescript(
+        """
+        CREATE TABLE IF NOT EXISTS settings (
+            key TEXT PRIMARY KEY,
+            value TEXT NOT NULL
+        );
+        """
+    )
+
+
 MIGRATIONS: list[Callable[[sqlite3.Connection], None]] = [
     migration_001_create_core_tables,
+    migration_002_add_settings_table,
 ]
 
 __all__ = [
