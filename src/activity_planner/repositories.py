@@ -399,6 +399,15 @@ def get_tags_for_activity(db: DatabaseManager, activity_id: int) -> list[str]:
     return [r["name"] for r in rows]
 
 
+def replace_tags_for_activity(db: DatabaseManager, activity_id: int, new_tags: list[str]) -> None:
+    """Replace all tags for an activity with the provided list (idempotent)."""
+    conn = db.connect()
+    with conn:
+        conn.execute("DELETE FROM activity_tag_map WHERE activity_id=?", (activity_id,))
+    for t in {tag.strip() for tag in new_tags if tag.strip()}:
+        add_tag_to_activity(db, activity_id, t)
+
+
 def filter_activity_instances_by_tag(db: DatabaseManager, tag: str, day_prefix: str | None = None) -> list[ActivityInstance]:
     sql = (
         """
@@ -431,5 +440,6 @@ __all__ += [
     "list_tags",
     "add_tag_to_activity",
     "get_tags_for_activity",
+    "replace_tags_for_activity",
     "filter_activity_instances_by_tag",
 ]

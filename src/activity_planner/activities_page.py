@@ -36,10 +36,20 @@ class ActivityDialog(QDialog):  # pragma: no cover simple UI
         self.effort_spin = QSpinBox()
         self.effort_spin.setRange(1, 10)
         self.effort_spin.setValue(activity.effort_level if activity else 5)
+        # Tags (comma separated)
+        from .repositories import get_tags_for_activity
+        existing_tags = []
+        if activity and activity.id:
+            try:
+                existing_tags = get_tags_for_activity(parent._store._db, activity.id)  # type: ignore[attr-defined]
+            except Exception:
+                existing_tags = []
+        self.tags_edit = QLineEdit(",".join(existing_tags))
         form = QFormLayout()
         form.addRow("Title", self.name_edit)
         form.addRow("Description", self.desc_edit)
         form.addRow("Effort (1-10)", self.effort_spin)
+        form.addRow("Tags (comma)", self.tags_edit)
         buttons = QDialogButtonBox(QDialogButtonBox.StandardButton.Ok | QDialogButtonBox.StandardButton.Cancel)
         buttons.accepted.connect(self.accept)
         buttons.rejected.connect(self.reject)
@@ -47,9 +57,10 @@ class ActivityDialog(QDialog):  # pragma: no cover simple UI
         layout.addLayout(form)
         layout.addWidget(buttons)
 
-    def get_values(self) -> tuple[str, str | None, int]:
+    def get_values(self) -> tuple[str, str | None, int, list[str]]:
         desc = self.desc_edit.toPlainText().strip() or None
-        return self.name_edit.text(), desc, self.effort_spin.value()
+        tags = [t.strip() for t in self.tags_edit.text().split(",") if t.strip()]
+        return self.name_edit.text(), desc, self.effort_spin.value(), tags
 
 
 class ActivitiesPage(QWidget):  # pragma: no cover UI heavy
@@ -126,10 +137,17 @@ class ActivitiesPage(QWidget):  # pragma: no cover UI heavy
     def _add(self) -> None:
         dlg = ActivityDialog(self, "New Activity")
         if dlg.exec() == QDialog.DialogCode.Accepted:
-            title, desc, effort = dlg.get_values()
+            title, desc, effort, tags = dlg.get_values()
             prev_count = len(self._store.activities())
             a = self._store.create(title, desc, effort)
             if a:
+                # store tags
+                if tags and a.id:
+                    try:
+                        from .repositories import replace_tags_for_activity
+                        replace_tags_for_activity(self._store._db, a.id, tags)  # type: ignore[attr-defined]
+                    except Exception:
+                        pass
                 show_toast(self, "Activity created")
                 # optimistic already inserted
                 if prev_count == 0:
@@ -142,8 +160,15 @@ class ActivitiesPage(QWidget):  # pragma: no cover UI heavy
             return
         dlg = ActivityDialog(self, "Edit Activity", activity=act)
         if dlg.exec() == QDialog.DialogCode.Accepted:
-            title, desc, effort = dlg.get_values()
-            if self._store.update(act, title=title, description=desc, effort_level=effort):
+            title, desc, effort, tags = dlg.get_values()
+            updated = self._store.update(act, title=title, description=desc, effort_level=effort)
+            if updated:
+                if act.id is not None:
+                    try:
+                        from .repositories import replace_tags_for_activity
+                        replace_tags_for_activity(self._store._db, act.id, tags)  # type: ignore[attr-defined]
+                    except Exception:
+                        pass
                 show_toast(self, "Activity updated")
 
     def _delete(self) -> None:
