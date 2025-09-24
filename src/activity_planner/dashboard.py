@@ -12,11 +12,13 @@ from PyQt6.QtWidgets import (
     QPushButton,
     QComboBox,
     QMessageBox,
+    QCheckBox,
 )
 
 from .timer_service import TimerService
 from .activity_store import ActivityStore
 from .repositories import set_setting, get_setting
+from .win_activity_monitor import AUTO_DETECT_KEY, WinActivityMonitor
 
 
 def format_hhmmss(seconds: int) -> str:
@@ -27,11 +29,12 @@ def format_hhmmss(seconds: int) -> str:
 
 
 class DashboardPage(QWidget):
-    def __init__(self, db_manager, timer_service: TimerService, activity_store: ActivityStore):  # noqa: D401
+    def __init__(self, db_manager, timer_service: TimerService, activity_store: ActivityStore, monitor: WinActivityMonitor | None = None):  # noqa: D401
         super().__init__()
         self._db = db_manager
         self._timer_service = timer_service
         self._store = activity_store
+        self._monitor = monitor
         self._current_instance_id: Optional[int] = None
         self.activity_combo = QComboBox()
         self._store.changed.connect(self.refresh_activities)
@@ -58,6 +61,18 @@ class DashboardPage(QWidget):
         btn_row.addWidget(self.btn_stop)
 
         layout = QVBoxLayout(self)
+        # Auto-detect row
+        detect_row = QHBoxLayout()
+        self.auto_detect_checkbox = QCheckBox("Auto-detect activities")
+        self.auto_detect_status = QLabel("OFF")
+        self.auto_detect_status.setStyleSheet("color: #a33; font-weight: bold;")
+        self.auto_detect_checkbox.setToolTip(
+            "When enabled, foreground window titles are monitored locally to suggest or auto-start activities. No raw titles are uploaded unless you opt-in later."
+        )
+        detect_row.addWidget(self.auto_detect_checkbox)
+        detect_row.addWidget(self.auto_detect_status)
+        detect_row.addStretch(1)
+        layout.addLayout(detect_row)
         layout.addWidget(QLabel("Current Activity:"))
         layout.addWidget(self.activity_combo)
         layout.addWidget(self.timer_label)
@@ -73,6 +88,16 @@ class DashboardPage(QWidget):
         self._timer_service.started.connect(self._on_started)
         self._timer_service.stopped.connect(self._on_stopped)
         self._timer_service.state_changed.connect(self._on_state_changed)
+        if self._monitor:
+            self._monitor.active_window.connect(self._on_active_window)
+            self._monitor.started.connect(lambda: self._update_monitor_status(True))
+            self._monitor.stopped.connect(lambda: self._update_monitor_status(False))
+        self.auto_detect_checkbox.toggled.connect(self._on_auto_detect_toggled)
+        # Initialize checkbox from settings
+        enabled = get_setting(self._db, AUTO_DETECT_KEY) == "1"
+        self.auto_detect_checkbox.setChecked(enabled)
+        if enabled and self._monitor:
+            self._monitor.start()
 
     # --- Activity list --------------------------------------------------
     def refresh_activities(self) -> None:
@@ -100,6 +125,29 @@ class DashboardPage(QWidget):
             self._store.set_selected_activity_id(None)
         else:
             self._store.set_selected_activity_id(int(act_id))
+
+    # --- Auto-detect handlers ------------------------------------------
+    def _on_auto_detect_toggled(self, checked: bool) -> None:  # pragma: no cover UI
+        set_setting(self._db, AUTO_DETECT_KEY, "1" if checked else "0")
+        if self._monitor:
+            if checked:
+                self._monitor.start()
+            else:
+                self._monitor.stop()
+        else:
+            self._update_monitor_status(False)
+
+    def _update_monitor_status(self, running: bool) -> None:  # pragma: no cover UI
+        if running:
+            self.auto_detect_status.setText("ON")
+            self.auto_detect_status.setStyleSheet("color: #2a2; font-weight: bold;")
+        else:
+            self.auto_detect_status.setText("OFF")
+            self.auto_detect_status.setStyleSheet("color: #a33; font-weight: bold;")
+
+    def _on_active_window(self, title: str, exe: str) -> None:  # pragma: no cover placeholder
+        # Future: classify & optionally auto-start activity
+        pass
 
     # --- Button handlers ------------------------------------------------
     def _on_start(self) -> None:

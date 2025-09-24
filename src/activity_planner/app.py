@@ -21,6 +21,7 @@ from .timer_service import TimerService
 from .dashboard import DashboardPage
 from .activity_store import ActivityStore
 from .activities_page import ActivitiesPage
+from .win_activity_monitor import WinActivityMonitor
 
 
 APP_NAME = "Activity Planner"
@@ -32,6 +33,7 @@ class AppState:
     db: DatabaseManager
     timer_service: TimerService
     activity_store: ActivityStore
+    win_activity_monitor: WinActivityMonitor
 
 
 def get_app_state() -> AppState:
@@ -42,9 +44,15 @@ def get_app_state() -> AppState:
     db = DatabaseManager(DBConfig(path=db_path))
     db.init_db()
     timer_service = TimerService(db)
-    activity_store = ActivityStore(db)
-    activity_store.load()
-    return AppState(db_path=db_path, db=db, timer_service=timer_service, activity_store=activity_store)
+    activity_store = ActivityStore(db); activity_store.load()
+    win_monitor = WinActivityMonitor()
+    return AppState(
+        db_path=db_path,
+        db=db,
+        timer_service=timer_service,
+        activity_store=activity_store,
+        win_activity_monitor=win_monitor,
+    )
 
 
 class Sidebar(QListWidget):
@@ -77,7 +85,14 @@ class MainWindow(QMainWindow):
         self.pages = QStackedWidget()
         for page in Sidebar.PAGES:
             if page == "Dashboard":
-                self.pages.addWidget(DashboardPage(state.db, state.timer_service, state.activity_store))
+                self.pages.addWidget(
+                    DashboardPage(
+                        state.db,
+                        state.timer_service,
+                        state.activity_store,
+                        state.win_activity_monitor,
+                    )
+                )
             elif page == "Activities":
                 self.pages.addWidget(ActivitiesPage(state.activity_store))
             else:
