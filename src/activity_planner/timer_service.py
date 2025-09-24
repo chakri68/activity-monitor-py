@@ -63,6 +63,10 @@ class TimerService(QObject):
             self.state_changed.emit(new_state)
 
     # --- Public API -----------------------------------------------------
+    @property
+    def current_activity_id(self) -> Optional[int]:
+        return self._activity_id
+
     def start(self, activity_id: int) -> int:
         if self._state in {"running", "paused"}:
             raise RuntimeError("Timer already active; stop or reset before starting a new one")

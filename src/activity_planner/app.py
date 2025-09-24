@@ -26,6 +26,7 @@ from .deadlines_page import DeadlinesPage
 from .planner_page import PlannerPage
 from .win_activity_monitor import WinActivityMonitor
 from .gemini_planner import GeminiClient, GeminiClientConfig, TitleCategorizer
+from .notification_manager import NotificationManager
 
 
 APP_NAME = "Activity Planner"
@@ -132,8 +133,20 @@ class MainWindow(QMainWindow):
         container_layout.addWidget(self.sidebar)
         container_layout.addWidget(self.pages, 1)
         self.setCentralWidget(container)
-
         self.sidebar.currentRowChanged.connect(self.pages.setCurrentIndex)
+
+        # Notification manager (system tray + timetable sync)
+        self.notification_manager = NotificationManager(self, state.db, state.timer_service, state.activity_store)
+
+        # Hook planner page save -> refresh notifications (rebuild schedule)
+        # Assumes only one PlannerPage added in same order as Sidebar.PAGES
+        for i in range(self.pages.count()):
+            w = self.pages.widget(i)
+            if w.__class__.__name__ == "PlannerPage" and hasattr(w, "timetable_saved"):
+                try:  # pragma: no cover - signal connection
+                    w.timetable_saved.connect(lambda _d: self.notification_manager.refresh())
+                except Exception:
+                    pass
 
 
 def run(argv: Optional[list[str]] = None) -> int:

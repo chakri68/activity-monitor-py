@@ -10,7 +10,7 @@ from PyQt6.QtWidgets import (
     QWidget, QVBoxLayout, QHBoxLayout, QLabel, QPushButton, QComboBox, QDateEdit,
     QTableWidget, QTableWidgetItem, QMessageBox
 )
-from PyQt6.QtCore import QDate
+from PyQt6.QtCore import QDate, pyqtSignal
 
 from .repositories import (
     list_activities, list_deadlines, create_timetable, get_timetable_by_date,
@@ -66,6 +66,8 @@ def detect_overlaps(slots: List[Slot]) -> bool:
 
 
 class PlannerPage(QWidget):  # pragma: no cover heavy UI
+    timetable_saved = pyqtSignal(str)  # date string
+
     def __init__(self, db, gemini_client: GeminiClient | None):
         super().__init__()
         self._db = db
@@ -216,7 +218,8 @@ class PlannerPage(QWidget):  # pragma: no cover heavy UI
                     notes=s.notes,
                 ),
             )
-        show_toast(self, "Timetable saved")
+            show_toast(self, "Timetable saved")
+            self.timetable_saved.emit(date)
 
     def _on_load_existing(self):
         date = self.date_edit.date().toString("yyyy-MM-dd")
