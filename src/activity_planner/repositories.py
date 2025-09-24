@@ -288,3 +288,37 @@ def set_setting(db: DatabaseManager, key: str, value: str) -> None:
         )
 
 __all__ += ["get_setting", "set_setting"]
+
+# --- Title Mapping Rules ----------------------------------------------------
+
+def create_title_mapping_rule(db: DatabaseManager, pattern: str, activity_id: int) -> int:
+    cur = db.execute(
+        "INSERT OR IGNORE INTO title_mapping_rules(pattern, activity_id) VALUES(?, ?)",
+        (pattern.strip(), activity_id),
+    )
+    return int(cur.lastrowid or 0)
+
+
+def find_rule_for_title(db: DatabaseManager, title: str) -> Activity | None:
+    # Exact case-insensitive match
+    row = db.query_one(
+        """
+        SELECT a.* FROM title_mapping_rules r
+        JOIN activities a ON a.id = r.activity_id
+        WHERE lower(r.pattern)=lower(?)
+        LIMIT 1
+        """,
+        (title.strip(),),
+    )
+    if not row:
+        return None
+    return Activity(
+        id=row["id"],
+        title=row["title"],
+        description=row["description"],
+        effort_level=row["effort_level"],
+        created_at=row["created_at"],
+    )
+
+
+__all__ += ["create_title_mapping_rule", "find_rule_for_title"]

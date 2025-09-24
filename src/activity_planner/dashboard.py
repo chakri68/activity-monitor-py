@@ -19,6 +19,7 @@ from .timer_service import TimerService
 from .activity_store import ActivityStore
 from .repositories import set_setting, get_setting
 from .win_activity_monitor import AUTO_DETECT_KEY, WinActivityMonitor
+from .gemini_planner import TitleCategorizer
 
 
 def format_hhmmss(seconds: int) -> str:
@@ -29,12 +30,13 @@ def format_hhmmss(seconds: int) -> str:
 
 
 class DashboardPage(QWidget):
-    def __init__(self, db_manager, timer_service: TimerService, activity_store: ActivityStore, monitor: WinActivityMonitor | None = None):  # noqa: D401
+    def __init__(self, db_manager, timer_service: TimerService, activity_store: ActivityStore, monitor: WinActivityMonitor | None = None, categorizer: TitleCategorizer | None = None):  # noqa: D401
         super().__init__()
         self._db = db_manager
         self._timer_service = timer_service
         self._store = activity_store
         self._monitor = monitor
+        self._categorizer = categorizer
         self._current_instance_id: Optional[int] = None
         self.activity_combo = QComboBox()
         self._store.changed.connect(self.refresh_activities)
@@ -73,6 +75,18 @@ class DashboardPage(QWidget):
         detect_row.addWidget(self.auto_detect_status)
         detect_row.addStretch(1)
         layout.addLayout(detect_row)
+        # Suggestion banner (hidden by default)
+        self.suggest_banner = QWidget()
+        sb_layout = QHBoxLayout(self.suggest_banner)
+        self.suggest_label = QLabel("")
+        self.btn_switch = QPushButton("Switch")
+        self.btn_ignore = QPushButton("Ignore")
+        self.btn_always = QPushButton("Always map this")
+        for w in (self.suggest_label, self.btn_switch, self.btn_ignore, self.btn_always):
+            sb_layout.addWidget(w)
+        sb_layout.addStretch(1)
+        self.suggest_banner.hide()
+        layout.addWidget(self.suggest_banner)
         layout.addWidget(QLabel("Current Activity:"))
         layout.addWidget(self.activity_combo)
         layout.addWidget(self.timer_label)
@@ -93,6 +107,8 @@ class DashboardPage(QWidget):
             self._monitor.started.connect(lambda: self._update_monitor_status(True))
             self._monitor.stopped.connect(lambda: self._update_monitor_status(False))
         self.auto_detect_checkbox.toggled.connect(self._on_auto_detect_toggled)
+        if self._categorizer:
+            self._categorizer.suggestion_ready.connect(self._on_suggestion)
         # Initialize checkbox from settings
         enabled = get_setting(self._db, AUTO_DETECT_KEY) == "1"
         self.auto_detect_checkbox.setChecked(enabled)
@@ -146,8 +162,56 @@ class DashboardPage(QWidget):
             self.auto_detect_status.setStyleSheet("color: #a33; font-weight: bold;")
 
     def _on_active_window(self, title: str, exe: str) -> None:  # pragma: no cover placeholder
-        # Future: classify & optionally auto-start activity
-        pass
+        if self.auto_detect_checkbox.isChecked() and self._categorizer:
+            self._categorizer.submit_title(title)
+
+    # --- Suggestion banner -------------------------------------------------
+    def _on_suggestion(self, category: str, confidence: float, original_title: str):  # pragma: no cover UI
+        # Only show if different from current selected activity
+        current_data = self.activity_combo.currentData()
+        current_title = None
+        if current_data not in (None, -1):
+            idx = self.activity_combo.currentIndex()
+            current_title = self.activity_combo.itemText(idx)
+        if current_title == category:
+            return
+        self._pending_category = category
+        self._pending_original_title = original_title
+        self.suggest_label.setText(f"Switch to {category}? ({confidence:.0%})")
+        self.suggest_banner.show()
+        self.btn_switch.clicked.connect(self._apply_suggestion)
+        self.btn_ignore.clicked.connect(self._ignore_suggestion)
+        self.btn_always.clicked.connect(self._always_map_suggestion)
+
+    def _apply_suggestion(self):  # pragma: no cover UI
+        self._select_activity_title(self._pending_category)
+        self._hide_banner()
+
+    def _ignore_suggestion(self):  # pragma: no cover UI
+        self._hide_banner()
+
+    def _always_map_suggestion(self):  # pragma: no cover UI
+        from .repositories import create_title_mapping_rule, list_activities
+
+        acts = self._store.activities()
+        target = next((a for a in acts if a.title == self._pending_category), None)
+        if target and self._pending_original_title:
+            create_title_mapping_rule(self._db, self._pending_original_title, target.id)  # type: ignore[arg-type]
+        self._select_activity_title(self._pending_category)
+        self._hide_banner()
+
+    def _select_activity_title(self, title: str):  # pragma: no cover UI
+        idx = self.activity_combo.findText(title, Qt.MatchFlag.MatchExactly)
+        if idx >= 0:
+            self.activity_combo.setCurrentIndex(idx)
+
+    def _hide_banner(self):  # pragma: no cover UI
+        self.suggest_banner.hide()
+        for btn in (self.btn_switch, self.btn_ignore, self.btn_always):
+            try:
+                btn.clicked.disconnect()
+            except Exception:  # already disconnected
+                pass
 
     # --- Button handlers ------------------------------------------------
     def _on_start(self) -> None:

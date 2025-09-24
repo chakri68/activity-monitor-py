@@ -165,9 +165,24 @@ def migration_002_add_settings_table(conn: sqlite3.Connection) -> None:
     )
 
 
+def migration_003_add_title_mapping_rules(conn: sqlite3.Connection) -> None:
+    conn.executescript(
+        """
+        CREATE TABLE IF NOT EXISTS title_mapping_rules (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            pattern TEXT NOT NULL UNIQUE, -- exact match (case-insensitive compare done in query)
+            activity_id INTEGER NOT NULL REFERENCES activities(id) ON DELETE CASCADE,
+            created_at TEXT NOT NULL DEFAULT (strftime('%Y-%m-%dT%H:%M:%fZ','now'))
+        );
+        CREATE INDEX IF NOT EXISTS idx_title_mapping_rules_pattern ON title_mapping_rules(pattern);
+        """
+    )
+
+
 MIGRATIONS: list[Callable[[sqlite3.Connection], None]] = [
     migration_001_create_core_tables,
     migration_002_add_settings_table,
+    migration_003_add_title_mapping_rules,
 ]
 
 __all__ = [

@@ -4,6 +4,7 @@ import sys
 from dataclasses import dataclass
 from pathlib import Path
 from typing import Optional
+import os
 
 from PyQt6.QtCore import Qt
 from PyQt6.QtWidgets import (
@@ -22,6 +23,7 @@ from .dashboard import DashboardPage
 from .activity_store import ActivityStore
 from .activities_page import ActivitiesPage
 from .win_activity_monitor import WinActivityMonitor
+from .gemini_planner import GeminiClient, GeminiClientConfig, TitleCategorizer
 
 
 APP_NAME = "Activity Planner"
@@ -34,6 +36,7 @@ class AppState:
     timer_service: TimerService
     activity_store: ActivityStore
     win_activity_monitor: WinActivityMonitor
+    title_categorizer: TitleCategorizer | None
 
 
 def get_app_state() -> AppState:
@@ -46,12 +49,26 @@ def get_app_state() -> AppState:
     timer_service = TimerService(db)
     activity_store = ActivityStore(db); activity_store.load()
     win_monitor = WinActivityMonitor()
+    # Gemini client (optional if no key)
+    gemini_key = os.environ.get("GEMINI_API_KEY", "")
+    gemini_client = None
+    title_categorizer = None
+    if gemini_key:
+        try:
+            gemini_client = GeminiClient(GeminiClientConfig(api_key=gemini_key))
+        except Exception:
+            gemini_client = None
+    if gemini_client:
+        from .gemini_planner import TitleCategorizer as _TC
+
+        title_categorizer = _TC(db, activity_store, gemini_client)
     return AppState(
         db_path=db_path,
         db=db,
         timer_service=timer_service,
         activity_store=activity_store,
         win_activity_monitor=win_monitor,
+        title_categorizer=title_categorizer,
     )
 
 
@@ -91,6 +108,7 @@ class MainWindow(QMainWindow):
                         state.timer_service,
                         state.activity_store,
                         state.win_activity_monitor,
+                        state.title_categorizer,
                     )
                 )
             elif page == "Activities":
