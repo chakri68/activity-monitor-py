@@ -1,0 +1,21 @@
+# Python
+__pycache__/
+*.py[cod]
+*.pyo
+*.pyd
+
+# Environments
+.venv/
+.env
+
+# Distribution / build
+build/
+dist/
+*.spec
+
+# IDE
+.idea/
+.vscode/
+
+# SQLite data
+/data/*.sqlite

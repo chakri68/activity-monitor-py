@@ -1,0 +1,7 @@
+[ui]
+# 'dark' or 'light'
+theme = "light"
+
+[ai]
+# Placeholder for Gemini API key
+api_key = "YOUR_GEMINI_KEY_HERE"
