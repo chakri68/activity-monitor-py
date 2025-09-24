@@ -178,11 +178,29 @@ def migration_003_add_title_mapping_rules(conn: sqlite3.Connection) -> None:
         """
     )
 
+def migration_004_add_activity_tags(conn: sqlite3.Connection) -> None:
+    conn.executescript(
+        """
+        CREATE TABLE IF NOT EXISTS tags (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            name TEXT NOT NULL UNIQUE,
+            created_at TEXT NOT NULL DEFAULT (strftime('%Y-%m-%dT%H:%M:%fZ','now'))
+        );
+        CREATE TABLE IF NOT EXISTS activity_tag_map (
+            activity_id INTEGER NOT NULL REFERENCES activities(id) ON DELETE CASCADE,
+            tag_id INTEGER NOT NULL REFERENCES tags(id) ON DELETE CASCADE,
+            PRIMARY KEY(activity_id, tag_id)
+        );
+        CREATE INDEX IF NOT EXISTS idx_activity_tag_map_tag ON activity_tag_map(tag_id);
+        """
+    )
+
 
 MIGRATIONS: list[Callable[[sqlite3.Connection], None]] = [
     migration_001_create_core_tables,
     migration_002_add_settings_table,
     migration_003_add_title_mapping_rules,
+    migration_004_add_activity_tags,
 ]
 
 __all__ = [

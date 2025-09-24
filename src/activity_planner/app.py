@@ -28,6 +28,8 @@ from .win_activity_monitor import WinActivityMonitor
 from .gemini_planner import GeminiClient, GeminiClientConfig, TitleCategorizer
 from .notification_manager import NotificationManager
 from .analytics_page import AnalyticsPage
+from .settings_page import SettingsPage, THEME_KEY
+from .pomodoro import PomodoroService, PomodoroConfig
 
 
 APP_NAME = "Activity Planner"
@@ -77,7 +79,7 @@ def get_app_state() -> AppState:
 
 
 class Sidebar(QListWidget):
-    PAGES = ["Dashboard", "Activities", "Planner", "Deadlines", "Analytics"]
+    PAGES = ["Dashboard", "Activities", "Planner", "Deadlines", "Analytics", "Settings"]
 
     def __init__(self) -> None:
         super().__init__()
@@ -101,6 +103,7 @@ class MainWindow(QMainWindow):
         self.state = state
         self.setWindowTitle(APP_NAME)
         self.resize(1100, 700)
+        self._pomo = PomodoroService()
 
         self.sidebar = Sidebar()
         self.pages = QStackedWidget()
@@ -127,6 +130,8 @@ class MainWindow(QMainWindow):
                 self.pages.addWidget(PlannerPage(state.db, gem_client))
             elif page == "Analytics":
                 self.pages.addWidget(AnalyticsPage(state.db))
+            elif page == "Settings":
+                self.pages.addWidget(SettingsPage(state.db, self._pomo, self.apply_theme))
             else:
                 self.pages.addWidget(PlaceholderPage(page))
 
@@ -150,6 +155,26 @@ class MainWindow(QMainWindow):
                     w.timetable_saved.connect(lambda _d: self.notification_manager.refresh())
                 except Exception:
                     pass
+
+        # Apply initial theme
+        from .repositories import get_setting
+        theme = get_setting(state.db, THEME_KEY) or "light"
+        self.apply_theme(theme)
+
+    # --- Theme handling -----------------------------------------------
+    def apply_theme(self, theme: str) -> None:  # pragma: no cover UI
+        if theme == "dark":
+            self.setStyleSheet(
+                """
+                QWidget { background-color: #202225; color: #ddd; }
+                QLineEdit, QTextEdit, QSpinBox, QComboBox { background: #2b2d31; color: #eee; border: 1px solid #444; }
+                QPushButton { background: #3a3d42; color: #eee; border: 1px solid #555; padding:4px 8px; }
+                QPushButton:hover { background: #44484f; }
+                QTableWidget { background: #2b2d31; }
+                """
+            )
+        else:
+            self.setStyleSheet("")
 
 
 def run(argv: Optional[list[str]] = None) -> int:

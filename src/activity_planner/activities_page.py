@@ -56,8 +56,8 @@ class ActivitiesPage(QWidget):  # pragma: no cover UI heavy
     def __init__(self, store: ActivityStore):
         super().__init__()
         self._store = store
-        self.table = QTableWidget(0, 4)
-        self.table.setHorizontalHeaderLabels(["ID", "Title", "Effort", "Description"])
+        self.table = QTableWidget(0, 5)
+        self.table.setHorizontalHeaderLabels(["ID", "Title", "Effort", "Description", "Tags"])
         self.table.setSelectionBehavior(self.table.SelectionBehavior.SelectRows)
         self.table.setEditTriggers(self.table.EditTrigger.NoEditTriggers)
         self.table.verticalHeader().setVisible(False)
@@ -115,6 +115,12 @@ class ActivitiesPage(QWidget):  # pragma: no cover UI heavy
             self.table.setItem(r, 1, QTableWidgetItem(a.title))
             self.table.setItem(r, 2, QTableWidgetItem(str(a.effort_level)))
             self.table.setItem(r, 3, QTableWidgetItem(a.description or ""))
+            try:  # optional tag column
+                from .repositories import get_tags_for_activity
+                tags = ",".join(get_tags_for_activity(self._store._db, a.id)) if a.id else ""  # type: ignore[attr-defined]
+                self.table.setItem(r, 4, QTableWidgetItem(tags))
+            except Exception:
+                self.table.setItem(r, 4, QTableWidgetItem(""))
 
     # --- CRUD ops -------------------------------------------------------
     def _add(self) -> None:

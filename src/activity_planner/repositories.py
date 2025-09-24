@@ -340,3 +340,74 @@ def find_rule_for_title(db: DatabaseManager, title: str) -> Activity | None:
 
 __all__ += ["create_title_mapping_rule", "find_rule_for_title"]
 __all__ += ["delete_timetable_entries", "get_activity_by_title"]
+
+# --- Tags (optional) -------------------------------------------------------
+
+def create_tag(db: DatabaseManager, name: str) -> int:
+    cur = db.execute("INSERT OR IGNORE INTO tags(name) VALUES(?)", (name.strip(),))
+    return int(cur.lastrowid or 0)
+
+
+def list_tags(db: DatabaseManager) -> list[str]:
+    rows = db.query_all("SELECT name FROM tags ORDER BY name")
+    return [r["name"] for r in rows]
+
+
+def add_tag_to_activity(db: DatabaseManager, activity_id: int, tag_name: str) -> None:
+    tag_id = create_tag(db, tag_name)
+    if tag_id == 0:  # tag existed
+        row = db.query_one("SELECT id FROM tags WHERE name=?", (tag_name.strip(),))
+        if row:
+            tag_id = row["id"]
+    db.execute(
+        "INSERT OR IGNORE INTO activity_tag_map(activity_id, tag_id) VALUES(?,?)",
+        (activity_id, tag_id),
+    )
+
+
+def get_tags_for_activity(db: DatabaseManager, activity_id: int) -> list[str]:
+    rows = db.query_all(
+        """
+        SELECT t.name FROM activity_tag_map m
+        JOIN tags t ON t.id = m.tag_id
+        WHERE m.activity_id=? ORDER BY t.name
+        """,
+        (activity_id,),
+    )
+    return [r["name"] for r in rows]
+
+
+def filter_activity_instances_by_tag(db: DatabaseManager, tag: str, day_prefix: str | None = None) -> list[ActivityInstance]:
+    sql = (
+        """
+        SELECT ai.* FROM activity_instances ai
+        JOIN activity_tag_map m ON m.activity_id = ai.activity_id
+        JOIN tags t ON t.id = m.tag_id
+        WHERE lower(t.name)=lower(?)
+        """
+        + (" AND ai.start_time LIKE ? || '%'" if day_prefix else "")
+        + " ORDER BY ai.start_time"
+    )
+    params: list[str] = [tag]
+    if day_prefix:
+        params.append(day_prefix)
+    rows = db.query_all(sql, params)
+    return [
+        ActivityInstance(
+            id=r["id"],
+            activity_id=r["activity_id"],
+            start_time=r["start_time"],
+            end_time=r["end_time"],
+            duration_seconds=r["duration_seconds"],
+            created_at=r["created_at"],
+        )
+        for r in rows
+    ]
+
+__all__ += [
+    "create_tag",
+    "list_tags",
+    "add_tag_to_activity",
+    "get_tags_for_activity",
+    "filter_activity_instances_by_tag",
+]
