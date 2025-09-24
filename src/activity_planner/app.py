@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import sys
+import logging
 from dataclasses import dataclass
 from pathlib import Path
 from typing import Optional
@@ -30,6 +31,10 @@ from .notification_manager import NotificationManager
 from .analytics_page import AnalyticsPage
 from .settings_page import SettingsPage, THEME_KEY
 from .pomodoro import PomodoroService, PomodoroConfig
+from .privacy_page import PrivacyPage
+from .logging_setup import configure_logging
+from .keys import load_api_key, redact
+from .updater import check_for_update_async
 
 
 APP_NAME = "Activity Planner"
@@ -49,6 +54,8 @@ def get_app_state() -> AppState:
     # For now store db in local data/; later move to AppData on Windows (platform check)
     data_dir = Path(__file__).resolve().parent.parent.parent / "data"
     data_dir.mkdir(exist_ok=True)
+    # Logging first
+    configure_logging(data_dir)
     db_path = data_dir / "activity_planner.sqlite"
     db = DatabaseManager(DBConfig(path=db_path))
     db.init_db()
@@ -56,7 +63,9 @@ def get_app_state() -> AppState:
     activity_store = ActivityStore(db); activity_store.load()
     win_monitor = WinActivityMonitor()
     # Gemini client (optional if no key)
-    gemini_key = os.environ.get("GEMINI_API_KEY", "")
+    # Gemini key: prefer secure storage, fallback env only if none stored
+    stored_key = load_api_key(data_dir)
+    gemini_key = stored_key or os.environ.get("GEMINI_API_KEY", "")
     gemini_client = None
     title_categorizer = None
     if gemini_key:
@@ -68,6 +77,9 @@ def get_app_state() -> AppState:
         from .gemini_planner import TitleCategorizer as _TC
 
         title_categorizer = _TC(db, activity_store, gemini_client)
+    logging.getLogger(__name__).info(
+        "app_state_created", extra={"gemini_key": redact(gemini_key)}
+    )
     return AppState(
         db_path=db_path,
         db=db,
@@ -79,7 +91,7 @@ def get_app_state() -> AppState:
 
 
 class Sidebar(QListWidget):
-    PAGES = ["Dashboard", "Activities", "Planner", "Deadlines", "Analytics", "Settings"]
+    PAGES = ["Dashboard", "Activities", "Planner", "Deadlines", "Analytics", "Settings", "Privacy"]
 
     def __init__(self) -> None:
         super().__init__()
@@ -132,6 +144,8 @@ class MainWindow(QMainWindow):
                 self.pages.addWidget(AnalyticsPage(state.db))
             elif page == "Settings":
                 self.pages.addWidget(SettingsPage(state.db, self._pomo, self.apply_theme))
+            elif page == "Privacy":
+                self.pages.addWidget(PrivacyPage())
             else:
                 self.pages.addWidget(PlaceholderPage(page))
 
@@ -160,6 +174,18 @@ class MainWindow(QMainWindow):
         from .repositories import get_setting
         theme = get_setting(state.db, THEME_KEY) or "light"
         self.apply_theme(theme)
+
+        # Check for updates asynchronously (GitHub repo assumed set via env APP_REPO)
+        repo = os.environ.get("APP_REPO", "chakri68/activity-monitor-py")
+        try:
+            from . import __version__ as current_version  # type: ignore
+        except Exception:  # pragma: no cover
+            current_version = "0.1.0"
+        def _update_cb(info):  # pragma: no cover UI callback
+            if info:
+                from .toast import show_toast
+                show_toast(self, f"Update available: {info.latest}")
+        check_for_update_async(repo, current_version, _update_cb)
 
     # --- Theme handling -----------------------------------------------
     def apply_theme(self, theme: str) -> None:  # pragma: no cover UI
