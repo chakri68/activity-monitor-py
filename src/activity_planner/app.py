@@ -6,7 +6,19 @@ from pathlib import Path
 from typing import Optional
 
 from PyQt6.QtCore import Qt
-from PyQt6.QtWidgets import QApplication, QMainWindow, QListWidget, QWidget, QStackedWidget, QVBoxLayout, QLabel
+from PyQt6.QtWidgets import (
+    QApplication,
+    QMainWindow,
+    QListWidget,
+    QWidget,
+    QStackedWidget,
+    QVBoxLayout,
+    QLabel,
+)
+
+from .database_manager import DBConfig, DatabaseManager
+from .timer_service import TimerService
+from .dashboard import DashboardPage
 
 
 APP_NAME = "Activity Planner"
@@ -15,13 +27,19 @@ APP_NAME = "Activity Planner"
 @dataclass(slots=True)
 class AppState:
     db_path: Path
+    db: DatabaseManager
+    timer_service: TimerService
 
 
 def get_app_state() -> AppState:
-    # For now store db in local data/; later move to AppData on Windows
+    # For now store db in local data/; later move to AppData on Windows (platform check)
     data_dir = Path(__file__).resolve().parent.parent.parent / "data"
     data_dir.mkdir(exist_ok=True)
-    return AppState(db_path=data_dir / "activity_planner.sqlite")
+    db_path = data_dir / "activity_planner.sqlite"
+    db = DatabaseManager(DBConfig(path=db_path))
+    db.init_db()
+    timer_service = TimerService(db)
+    return AppState(db_path=db_path, db=db, timer_service=timer_service)
 
 
 class Sidebar(QListWidget):
@@ -35,7 +53,7 @@ class Sidebar(QListWidget):
 
 
 class PlaceholderPage(QWidget):
-    def __init__(self, title: str) -> None:
+    def __init__(self, title: str) -> None:  # pragma: no cover - simple UI
         super().__init__()
         layout = QVBoxLayout(self)
         label = QLabel(f"{title} Page (stub)")
@@ -53,7 +71,10 @@ class MainWindow(QMainWindow):
         self.sidebar = Sidebar()
         self.pages = QStackedWidget()
         for page in Sidebar.PAGES:
-            self.pages.addWidget(PlaceholderPage(page))
+            if page == "Dashboard":
+                self.pages.addWidget(DashboardPage(state.db, state.timer_service))
+            else:
+                self.pages.addWidget(PlaceholderPage(page))
 
         container = QWidget()
         container_layout = QVBoxLayout(container)
